@@ -3,18 +3,21 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 import dotenv from 'dotenv';
-import { handleParseJob, sendTelegramNotification } from './src/server/apiHandler';
 
 dotenv.config();
 
 function apiPlugin(): Plugin {
   return {
     name: 'api-server-middleware',
+    apply: 'serve', // Only runs during dev server, never during production build
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/api/')) {
           return next();
         }
+
+        // Dynamically load server handler during local dev requests
+        const { handleParseJob, sendTelegramNotification } = await import('./src/server/apiHandler.ts');
 
         // Helper to parse JSON body
         const readBody = () =>
@@ -122,16 +125,12 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss(), apiPlugin()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname || '.', '.'),
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };
 });
-
